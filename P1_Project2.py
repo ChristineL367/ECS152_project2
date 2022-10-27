@@ -6,7 +6,7 @@ import sys
 import socket
 def create_query():
     DNS_QUERY = {
-        'header':{
+        
         'id': 0,
         'qr': 0,
         'opcode': 0000,
@@ -19,36 +19,36 @@ def create_query():
         'qdcount':0,
         'ancount':0,
         'nscount':0,
-        'arcount':0},
-        'question':{
-            'qname': 0,
-            'qtype': 0,
-            'qclass': 0,
-        },
-        'answer':{
-            'name':0,
-            'type':0,
-            'class':0,
-            'ttl':0,
-            'rdlength':0,
-            'rdata':0
-        },
-        'authority': {
-            'name': 0,
-            'type': 0,
-            'class': 0,
-            'ttl': 0,
-            'rdlength': 0,
-            'rdata': 0
-        },
-        'additional': {
-            'name': 0,
-            'type': 0,
-            'class': 0,
-            'ttl': 0,
-            'rdlength': 0,
-            'rdata': 0
-        },
+        'arcount':0,
+        
+        'qname': 0,
+        'qtype': 0,
+        'qclass': 0,
+        
+        
+        'name':0,
+        'type':0,
+        'class':0,
+        'ttl':0,
+        'rdlength':0,
+        'rdata':0,
+        
+        
+        'name': 0,
+        'type': 0,
+        'class': 0,
+        'ttl': 0,
+        'rdlength': 0,
+        'rdata': 0,
+        
+       
+        'name': 0,
+        'type': 0,
+        'class': 0,
+        'ttl': 0,
+        'rdlength': 0,
+        'rdata': 0
+        
         'offset':0
     }
 
