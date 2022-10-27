@@ -53,7 +53,7 @@ def create_query():
     }
 
     DNS_IP = "91.245.229.1" #change this by country
-    DNS_PORT = 442
+    DNS_PORT = 53
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
 
