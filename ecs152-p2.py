@@ -3,28 +3,16 @@ import sys
 import socket
 import binascii
 
-def get_type(type):
-    types = [
-        "ERROR",  # type 0 does not exist
-        "A",
-        "NS",
-        "MD",
-        "MF",
-        "CNAME",
-        "SOA",
-        "MB",
-        "MG",
-        "MR",
-        "NULL",
-        "WKS",
-        "PTS",
-        "HINFO",
-        "MINFO",
-        "MX",
-        "TXT"
-    ]
+def get_type(input):
+    types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO", "MX", "TXT"]
 
-    return "{:04x}".format(types.index(type)) if isinstance(type, str) else types[type]
+    if type(input) == str:
+        return "{:04x}".format(types.index(type))
+    else:
+        if input < 17:
+            return types[input]
+        elif input == 28:
+            return "AAAA"
 
 
 
@@ -245,6 +233,7 @@ def parse(message):
 
     
     print(*response, sep = "\n")
+    print(*an, sep = "\n")
     print(*ns, sep = "\n")
     print(*ar, sep = "\n")
     
@@ -278,6 +267,7 @@ def parse_rr(message, start, end, num):
     for current in range(num):
         aname = message[start:end]
         atype = message[start+4:end+4]
+        atype = get_type(int(atype, 16))
         aclass = message[start+8:end+8]
         ttl = message[start+12:end+16]
         rdlength = message[start+20:end+20]
@@ -289,7 +279,7 @@ def parse_rr(message, start, end, num):
         ip = ""
         ip_sec = ""
 
-        # if atype == "0001":
+
         while tracker != int(rdlength,16)*2:
             end_tracker = tracker + 2
             ip_sec = int(rddata[tracker:end_tracker], 16)
