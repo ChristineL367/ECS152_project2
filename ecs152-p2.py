@@ -1,7 +1,3 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 from pickle import FALSE, TRUE
 import sys
 import socket
@@ -31,6 +27,7 @@ def get_type(type):
     return "{:04x}".format(types.index(type)) if isinstance(type, str) else types[type]
 
 
+
 def create_query(hostname):
 
     ID = 43690
@@ -38,7 +35,7 @@ def create_query(hostname):
     OPCODE = 0
     AA = 0
     TC = 0
-    RD = 1
+    RD = 0
     RA = 0
     Z = 0
     RCODE = 0
@@ -137,7 +134,7 @@ def create_query(hostname):
 
 
 def send_message(message):
-    DNS_IP = "169.237.229.88"  # change this by country
+    DNS_IP = "192.33.4.12"  # change this by country
     DNS_PORT = 53
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
@@ -188,7 +185,7 @@ def parse(message):
     for i in range(0, len(header)):
         response.append(header[i] + ": " + header_values[i])
 
-
+    response.append("")
     # question
     qlength = message[24:26]
     qname = ""
@@ -233,7 +230,7 @@ def parse(message):
 
     response.append("QCLASS: " + qclass)
 
-    print(response)
+    response.append("")
 
     #answer
     start = end
@@ -242,8 +239,43 @@ def parse(message):
 
     num_ans = max(count)
 
-    for current in range(num_ans):
-        print("break\n")
+    an, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
+    ns, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
+    ar, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
+
+    
+    print(*response, sep = "\n")
+    print(*ns, sep = "\n")
+    print(*ar, sep = "\n")
+    
+
+
+# def connection(domain, ip):
+#     target_host = "domain" 
+ 
+#     target_port = 80  # create a socket object 
+#     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
+    
+#     # connect the client 
+#     client.connect(("157.240.22.35",target_port))  
+    
+#     # send some data 
+#     request = "GET / HTTP/1.1\r\nHost:%s\r\n\r\n" % target_host
+#     client.send(request.encode())  
+    
+#     # receive some data 
+#     response = client.recv(4096)  
+#     http_response = repr(response)
+#     http_response_len = len(http_response)
+
+#     print(str(response, 'utf-8'))
+    
+
+def parse_rr(message, start, end, num):
+
+    response_list = []
+
+    for current in range(num):
         aname = message[start:end]
         atype = message[start+4:end+4]
         aclass = message[start+8:end+8]
@@ -257,59 +289,32 @@ def parse(message):
         ip = ""
         ip_sec = ""
 
-        if atype == "0001":
-            while tracker != int(rdlength,16)*2:
-                end_tracker = tracker + 2
-                ip_sec = int(rddata[tracker:end_tracker], 16)
-                print("ip section:" + str(ip_sec))
-                if(tracker + 2 != int(rdlength,16)*2):
-                    print("first")
-                    ip = ip + str(ip_sec) + "."
-                else:
-                    print("else")
-                    ip = ip + str(ip_sec)
-                
-                
-                tracker += 2
-                end_tracker += 2
+        # if atype == "0001":
+        while tracker != int(rdlength,16)*2:
+            end_tracker = tracker + 2
+            ip_sec = int(rddata[tracker:end_tracker], 16)
+            if(tracker + 2 != int(rdlength,16)*2):
+                ip = ip + str(ip_sec) + "."
+            else:
+                ip = ip + str(ip_sec)
             
-            response.append("ANAME: " + aname)
-            response.append("ATYPE: " + atype)
-            response.append("ACLASS " + aclass)
-            response.append("TTL: " + str(ttl))
-            response.append("RDLENGTH " + str(int(rdlength,16)))
-            response.append("RDDATA: " + rddata)
-            response.append("IP: " + ip)
+            
+            tracker += 2
+            end_tracker += 2
+        
+        response_list.append("ANAME: " + aname)
+        response_list.append("ATYPE: " + atype)
+        response_list.append("ACLASS " + aclass)
+        response_list.append("TTL: " + str(ttl))
+        response_list.append("RDLENGTH: " + str(int(rdlength,16)))
+        response_list.append("RDDATA: " + rddata)
+        response_list.append("IP: " + ip)
+        response_list.append("")
         
         start = end
         end = end + 4
-                
-    print(response)
-
-def connection(domain, ip):
-    target_host = "domain" 
- 
-    target_port = 80  # create a socket object 
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
     
-    # connect the client 
-    client.connect(("13.35.125.10",target_port))  
-    
-    # send some data 
-    request = "GET / HTTP/1.1\r\nHost:%s\r\n\r\n" % target_host
-    client.send(request.encode())  
-    
-    # receive some data 
-    response = client.recv(4096)  
-    http_response = repr(response)
-    http_response_len = len(http_response)
-
-    print(str(response, 'utf-8'))
-    
-
-
-
-        
+    return response_list, start, end
 
     
 
@@ -319,8 +324,6 @@ if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
     response = send_message(message)
+    # print(response)
+    response = parse(response)
     # response = display(response)
-
-
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
