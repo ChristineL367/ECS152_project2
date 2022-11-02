@@ -6,7 +6,6 @@ from pickle import FALSE, TRUE
 import sys
 import socket
 import binascii
-# import bitarray
 
 def get_type(type):
     types = [
@@ -33,16 +32,17 @@ def get_type(type):
 
 
 def create_query(hostname):
+
     ID = 43690
     QR = 0
     OPCODE = 0
     AA = 0
     TC = 0
-    RD = 0
+    RD = 1
     RA = 0
     Z = 0
     RCODE = 0
-    QDCOUNT = 0
+    QDCOUNT = 1
     ANCOUNT = 0
     NSCOUNT = 0
     ARCOUNT = 0
@@ -105,34 +105,33 @@ def create_query(hostname):
     message += "00"  # Terminating bit for QNAME
 
     # Type of request
-    QTYPE = 0
+    QTYPE = 1
     message += "{:04x}".format(QTYPE)
 
     # Class for lookup. 1 is Internet
     QCLASS = 1
     message += "{:04x}".format(QCLASS)
-    message += addr_parts[0].encode('utf-8').hex()
-    message += "{:04x}".format(ANS_type)
-    message += "{:04x}".format(ANS_class)
-    message += "{:04x}".format(ANS_ttl)
-    message += "{:04x}".format(ANS_rdlength)
-    message += "{:04x}".format(ANS_rddata)
+    # message += addr_parts[0].encode('utf-8').hex()
+    # message += "{:04x}".format(ANS_type)
+    # message += "{:04x}".format(ANS_class)
+    # message += "{:04x}".format(ANS_ttl)
+    # message += "{:04x}".format(ANS_rdlength)
+    # message += "{:04x}".format(ANS_rddata)
 
-    message += addr_parts[0].encode('utf-8').hex()
-    message += "{:04x}".format(AUTH_type)
-    message += "{:04x}".format(AUTH_class)
-    message += "{:04x}".format(AUTH_ttl)
-    message += "{:04x}".format(AUTH_rdlength)
-    message += "{:04x}".format(AUTH_rddata)
+    # message += addr_parts[0].encode('utf-8').hex()
+    # message += "{:04x}".format(AUTH_type)
+    # message += "{:04x}".format(AUTH_class)
+    # message += "{:04x}".format(AUTH_ttl)
+    # message += "{:04x}".format(AUTH_rdlength)
+    # message += "{:04x}".format(AUTH_rddata)
 
-    message += addr_parts[0].encode('utf-8').hex()
-    message += "{:04x}".format(ADD_type)
-    message += "{:04x}".format(ADD_class)
-    message += "{:04x}".format(ADD_ttl)
-    message += "{:04x}".format(ADD_rdlength)
-    message += "{:04x}".format(ADD_rddata)
+    # message += addr_parts[0].encode('utf-8').hex()
+    # message += "{:04x}".format(ADD_type)
+    # message += "{:04x}".format(ADD_class)
+    # message += "{:04x}".format(ADD_ttl)
+    # message += "{:04x}".format(ADD_rdlength)
+    # message += "{:04x}".format(ADD_rddata)
 
-    print(len(message))
 
     return message
 
@@ -149,13 +148,13 @@ def send_message(message):
 
     client.sendto(binascii.unhexlify(message), address)
 
-    data, address = client.recvfrom(READ_BUFFER)
+    data, address = client.recvfrom(4096)
 
-    print(data)
+    client.close()
 
     hex = binascii.hexlify(data)
 
-    return hex.decode()
+    return hex.decode("utf-8")
 
 
 def parse(message):
@@ -195,22 +194,20 @@ def parse(message):
     qname = ""
     qcurrent = ""
 
-    end = 26 + int(qlength) * 2
+    end = 26 + int(qlength, 16) * 2
 
     qname = message[26:end]
 
     q_string = bytes.fromhex(qname)
     q_string = q_string.decode("ascii")
     q_string = q_string
-
-    print(q_string)
     
     start = end
     end = start + 2
 
     while message[start:end] != "00":
         qlength = message[start:end]
-        p_end = end + int(qlength) * 2
+        p_end = end + int(qlength, 16) * 2
         qname = message[end:p_end]
 
         qname = bytes.fromhex(qname)
@@ -219,89 +216,95 @@ def parse(message):
         
         start = p_end
         end = p_end + 2
+    
+    response.append("Domain: " + q_string)
 
-    start = p_end
-    end = p_end + 4
+    start = p_end + 4
+    end = p_end + 6
     
     qtype = message[start:end]
+
+    response.append("QTYPE: " + qtype)
 
     start = end
     end = end + 4
 
     qclass = message[start:end]
 
+    response.append("QCLASS: " + qclass)
+
+    print(response)
+
     #answer
     start = end
     end = end + 4
+    count = [int(ANCOUNT, 16), int(NSCOUNT, 16), int(ARCOUNT, 16)]
 
+    num_ans = max(count)
 
+    for current in range(num_ans):
+        print("break\n")
+        aname = message[start:end]
+        atype = message[start+4:end+4]
+        aclass = message[start+8:end+8]
+        ttl = message[start+12:end+16]
+        rdlength = message[start+20:end+20]
+        end = end + 20 + int(rdlength, 16)*2
+        rddata = message[start+24:end]
 
-    aname = message[start:end]
-
-    start = end
-    end = end + 4
-
-    atype = message[start:end]
-
-    if atype == "0000":
-
-        start = end
-        end = end + 4
-
-        aclass = message[start:end]
-
-        start = end
-        end = end + 8
-
-        attl = message[start:end]
-
-        start = end
-        end = end + 4
-
-        rdlength = message[start:end]
-        print(rdlength)
-
-        start = end
-        end = end + int(rdlength) * 2
-
-        rd = message[start:end]
+        tracker = 0
+        end_tracker = 0
         ip = ""
+        ip_sec = ""
 
-        count = 0
-        count_end = 2
-
-        while count != int(rdlength):
-            current = rd[count:count_end]
-            temp = bytes.fromhex(current)
-            if count_end != int(rdlength):
-                ip = ip + temp.decode("ascii") + "."
-
-            count = count_end
-            count_end = count_end + 2
+        if atype == "0001":
+            while tracker != int(rdlength,16)*2:
+                end_tracker = tracker + 2
+                ip_sec = int(rddata[tracker:end_tracker], 16)
+                print("ip section:" + str(ip_sec))
+                if(tracker + 2 != int(rdlength,16)*2):
+                    print("first")
+                    ip = ip + str(ip_sec) + "."
+                else:
+                    print("else")
+                    ip = ip + str(ip_sec)
+                
+                
+                tracker += 2
+                end_tracker += 2
+            
+            response.append("ANAME: " + aname)
+            response.append("ATYPE: " + atype)
+            response.append("ACLASS " + aclass)
+            response.append("TTL: " + str(ttl))
+            response.append("RDLENGTH " + str(int(rdlength,16)))
+            response.append("RDDATA: " + rddata)
+            response.append("IP: " + ip)
         
-        print(ip)
+        start = end
+        end = end + 4
+                
+    print(response)
 
-
-
-    print(q_string)
+def connection(domain, ip):
+    target_host = "domain" 
+ 
+    target_port = 80  # create a socket object 
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
     
-    # while message[tracker:tracker+2] != "00" or qlength != 0:
-    #     print(tracker)
-    #     for i in range(int(qlength)):
-    #         if message[tracker:tracker+2] != "00": 
-    #             qcurrent = qcurrent + message[tracker:tracker+2]
-    #             tracker += 2
-    #         else:
-    #             print("reached end")
-    #             break
-    #     qname = bytes.fromhex(qcurrent)
-    #     qname = qname.decode("ascii")
-    #     qcurrent = ""
-    #     if message[tracker:tracker+2] != "00": 
-    #         qname = qname + "."
-    #         qlength = message[tracker:tracker+2]
+    # connect the client 
+    client.connect(("13.35.125.10",target_port))  
+    
+    # send some data 
+    request = "GET / HTTP/1.1\r\nHost:%s\r\n\r\n" % target_host
+    client.send(request.encode())  
+    
+    # receive some data 
+    response = client.recv(4096)  
+    http_response = repr(response)
+    http_response_len = len(http_response)
 
-
+    print(str(response, 'utf-8'))
     
 
 
@@ -315,7 +318,9 @@ def parse(message):
 if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
-    returnme = send_message(message)
-    print(returnme)
-    parse(returnme)
+    response = send_message(message)
+    # response = display(response)
+
+
+
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
