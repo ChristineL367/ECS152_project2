@@ -2,9 +2,11 @@ from pickle import FALSE, TRUE
 import sys
 import socket
 import binascii
+import time
 
 def get_type(input):
-    types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO", "MX", "TXT"]
+    types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO",
+             "MX", "TXT"]
 
     if type(input) == str:
         return "{:04x}".format(types.index(type))
@@ -15,9 +17,7 @@ def get_type(input):
             return "AAAA"
 
 
-
 def create_query(hostname):
-
     ID = 43690
     QR = 0
     OPCODE = 0
@@ -117,12 +117,11 @@ def create_query(hostname):
     # message += "{:04x}".format(ADD_rdlength)
     # message += "{:04x}".format(ADD_rddata)
 
-
     return message
 
 
-def send_message(message):
-    DNS_IP = "205.251.193.129"  # change this by root
+def send_message(message, IP):
+    DNS_IP = IP  # change this by root
     DNS_PORT = 53
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
@@ -130,16 +129,16 @@ def send_message(message):
     address = (DNS_IP, DNS_PORT)
 
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Internet, UDP.
-
+    start = time.perf_counter()
     client.sendto(binascii.unhexlify(message), address)
 
     data, address = client.recvfrom(4096)
 
     client.close()
-
+    end = time.perf_counter()
     hex = binascii.hexlify(data)
 
-    return hex.decode("utf-8")
+    return hex.decode("utf-8"), (end-start) * 1000
 
 
 def parse(message):
@@ -166,7 +165,6 @@ def parse(message):
     NSCOUNT = message[16:20]
     ARCOUNT = message[20:24]
 
-
     header = ["ID", "QR", "OPCODE", "AA", "TC", "RD", "RA", "Z", "RCODE", "QDCOUNT", "ANCOUNT", "NSCOUNT", "ARCOUNT"]
     header_values = [ID, QR, OPCODE, AA, TC, RD, RA, Z, RCODE, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT]
 
@@ -186,7 +184,7 @@ def parse(message):
     q_string = bytes.fromhex(qname)
     q_string = q_string.decode("ascii")
     q_string = q_string
-    
+
     start = end
     end = start + 2
 
@@ -198,15 +196,15 @@ def parse(message):
         qname = bytes.fromhex(qname)
         qname = qname.decode("ascii")
         q_string = q_string + "." + qname
-        
+
         start = p_end
         end = p_end + 2
-    
+
     response.append("Domain: " + q_string)
 
     start = p_end + 4
     end = p_end + 6
-    
+
     qtype = message[start:end]
 
     response.append("QTYPE: " + qtype)
@@ -220,100 +218,121 @@ def parse(message):
 
     response.append("")
 
-    #answer
+    # answer
     start = end
     end = end + 4
     count = [int(ANCOUNT, 16), int(NSCOUNT, 16), int(ARCOUNT, 16)]
 
     num_ans = max(count)
 
-    an, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
-    ns, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
-    ar, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
+    an, an_ips, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
+    ns, ns_ips, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
+    ar, ar_ips, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
 
-    
-    print(*response, sep = "\n")
-    print(*an, sep = "\n")
-    # print(*ns, sep = "\n")
-    print(*ar, sep = "\n")
-    
+    print(*response, sep="\n")
+    print(*ns, sep="\n")
+    print(*ar, sep="\n")
+    print(*an, sep="\n")
 
+    return response, an_ips + ns_ips + ar_ips
 
 # def connection(domain, ip):
-#     target_host = "domain" 
- 
-#     target_port = 80  # create a socket object 
-#     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
-    
-#     # connect the client 
-#     client.connect(("157.240.22.35",target_port))  
-    
-#     # send some data 
+#     target_host = "domain"
+
+#     target_port = 80  # create a socket object
+#     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+#     # connect the client
+#     client.connect(("157.240.22.35",target_port))
+
+#     # send some data
 #     request = "GET / HTTP/1.1\r\nHost:%s\r\n\r\n" % target_host
-#     client.send(request.encode())  
-    
-#     # receive some data 
-#     response = client.recv(4096)  
+#     client.send(request.encode())
+
+#     # receive some data
+#     response = client.recv(4096)
 #     http_response = repr(response)
 #     http_response_len = len(http_response)
 
 #     print(str(response, 'utf-8'))
-    
+
 
 def parse_rr(message, start, end, num):
-
     response_list = []
-
+    ips=[]
     for current in range(num):
         aname = message[start:end]
-        atype = message[start+4:end+4]
+        atype = message[start + 4:end + 4]
         atype = get_type(int(atype, 16))
-        aclass = message[start+8:end+8]
-        ttl = message[start+12:end+16]
-        rdlength = message[start+20:end+20]
-        end = end + 20 + int(rdlength, 16)*2
-        rddata = message[start+24:end]
+        aclass = message[start + 8:end + 8]
+        ttl = message[start + 12:end + 16]
+
+        rdlength = message[start + 20:end + 20]
+        end = end + 20 + int(rdlength, 16) * 2
+        rddata = message[start + 24:end]
 
         tracker = 0
         end_tracker = 0
         ip = ""
         ip_sec = ""
 
-
-        while tracker != int(rdlength,16)*2:
+        while tracker != int(rdlength, 16) * 2:
             end_tracker = tracker + 2
             ip_sec = int(rddata[tracker:end_tracker], 16)
-            if(tracker + 2 != int(rdlength,16)*2):
+            if (tracker + 2 != int(rdlength, 16) * 2):
                 ip = ip + str(ip_sec) + "."
             else:
                 ip = ip + str(ip_sec)
-            
-            
+
             tracker += 2
             end_tracker += 2
-        
+
         response_list.append("ANAME: " + aname)
         response_list.append("ATYPE: " + atype)
-        response_list.append("ACLASS: " + aclass)
+        response_list.append("ACLASS " + aclass)
         response_list.append("TTL: " + str(ttl))
-        response_list.append("RDLENGTH: " + str(int(rdlength,16)))
+        response_list.append("RDLENGTH: " + str(int(rdlength, 16)))
         response_list.append("RDDATA: " + rddata)
         response_list.append("IP: " + ip)
+        ips.append(ip)
         response_list.append("")
-        
+
         start = end
         end = end + 4
-    
-    return response_list, start, end
 
-    
+    return response_list, ips, start, end
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
-    response = send_message(message)
-    # print(response)
-    response = parse(response)
-    # response = display(response)
+    print("Root IP:", "199.7.83.42")
+    response_Root, t1 = send_message(message, "199.7.83.42")
+    print("RTT Root", t1)
+    response_Root, ips = parse(response_Root)
+
+    tld_ip = ips[0]
+    for i in ips:
+        if len(i) < 16:
+            tld_ip=i
+    print("TLD IP:", tld_ip)
+    response_TLD, t2 = send_message(message, tld_ip)
+    print("RTT TLD", t1+t2)
+    response_TLD, ips = parse(response_TLD)
+
+    auth_ip = ips[0]
+    for i in ips:
+        if len(i) < 16:
+            auth_ip = i
+    print("Auth IP:", auth_ip)
+    response_Auth, t3 = send_message(message, auth_ip)
+    print("RTT Auth", t1 + t2+t3)
+    response_Auth, ips = parse(response_Auth)
+
+    resolved_ip = ips[0]
+    for i in ips:
+        if len(i) < 16:
+            resolved_ip = i
+            print("Resolved IP for", host+":", resolved_ip)
+            break
