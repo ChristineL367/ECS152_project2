@@ -73,7 +73,7 @@ def create_query(hostname):
     flags += str(Z).zfill(3)
     flags += str(RCODE).zfill(4)
 
-    query = "{:04x}".format(int(query, 2))
+    query = "{:04x}".format(int(flags, 2))
     message += "{:04x}".format(ID)
     message += query
     message += "{:04x}".format(QDCOUNT)
@@ -151,7 +151,7 @@ def parse(message):
     ID = message[0:4]
 
     flags = message[4:8]
-    parameters = bin(int(flags, 16)).zfill(16)
+    parameters = format(int(flags, 16), "b").zfill(16)
 
     QR = parameters[0:1]
     OPCODE = parameters[1:5]
@@ -219,8 +219,6 @@ def parse(message):
 
     response.append("QCLASS: " + qclass)
 
-    print(response)
-
     #answer
     start = end
     end = end + 4
@@ -231,7 +229,6 @@ def parse(message):
     # num_ans = max(count)
 
     for current in range(int(ANCOUNT, 16)):
-        print("break\n")
         aname = message[start:end]
         atype = message[start+4:end+4]
         aclass = message[start+8:end+8]
@@ -249,12 +246,9 @@ def parse(message):
             while tracker != int(rdlength,16)*2:
                 end_tracker = tracker + 2
                 ip_sec = int(rddata[tracker:end_tracker], 16)
-                print("ip section:" + str(ip_sec))
                 if(tracker + 2 != int(rdlength,16)*2):
-                    print("first")
                     ip = ip + str(ip_sec) + "."
                 else:
-                    print("else")
                     ip = ip + str(ip_sec)
                 
                 
@@ -306,9 +300,9 @@ if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
     response = send_message(message)
-    response = parse(response)
+    response, ip_list = parse(response)
     # response = display(response)
-    print(response)
+    print(*response, sep = "\n")
     connection("youtube", "yay")
 
 

@@ -122,7 +122,7 @@ def create_query(hostname):
 
 
 def send_message(message):
-    DNS_IP = "192.33.4.12"  # change this by country
+    DNS_IP = "205.251.193.129"  # change this by root
     DNS_PORT = 53
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
@@ -150,7 +150,7 @@ def parse(message):
     ID = message[0:4]
 
     flags = message[4:8]
-    parameters = bin(int(flags, 16)).zfill(16)
+    parameters = format(int(flags, 16), "b").zfill(16)
 
     QR = parameters[0:1]
     OPCODE = parameters[1:5]
@@ -234,7 +234,7 @@ def parse(message):
     
     print(*response, sep = "\n")
     print(*an, sep = "\n")
-    print(*ns, sep = "\n")
+    # print(*ns, sep = "\n")
     print(*ar, sep = "\n")
     
 
@@ -294,7 +294,7 @@ def parse_rr(message, start, end, num):
         
         response_list.append("ANAME: " + aname)
         response_list.append("ATYPE: " + atype)
-        response_list.append("ACLASS " + aclass)
+        response_list.append("ACLASS: " + aclass)
         response_list.append("TTL: " + str(ttl))
         response_list.append("RDLENGTH: " + str(int(rdlength,16)))
         response_list.append("RDDATA: " + rddata)
