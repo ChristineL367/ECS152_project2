@@ -269,7 +269,7 @@ def parse(message):
         start = end
         end = end + 4
                 
-    return response, ip_list
+    return q_string, ip_list
 
 def connection(domain, ip):
     target_host = "domain" 
@@ -300,10 +300,10 @@ if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
     response = send_message(message)
-    response, ip_list = parse(response)
+    domain, ip = parse(response)
     # response = display(response)
-    print(*response, sep = "\n")
-    connection("youtube", "yay")
+    print("Domain: " + domain)
+    print("HTTP Server Address: " + ip[0])
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
