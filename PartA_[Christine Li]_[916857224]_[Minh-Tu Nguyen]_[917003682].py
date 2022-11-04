@@ -123,7 +123,7 @@ def get_type(input):
 
 # sending message to DNS IP
 def send_message(message):
-    DNS_IP = "169.237.229.88"  # change this by country - currently for the USA
+    DNS_IP = "205.251.192.244"  # change this by country - currently for the USA
     DNS_PORT = 53
 
     READ_BUFFER = 1024  # size of the buffer to read in the received UDP packet.

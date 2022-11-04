@@ -22,7 +22,7 @@ def create_query(hostname):
     TC = 0
     TC_str = str(TC)
 
-    RD = 1
+    RD = 0
     RD_str = str(RD)
 
     RA = 0
@@ -231,16 +231,22 @@ def parse(message):
     num_ans = max(count)
 
     # parse resrouce records
-    an, an_ips, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
-    ns, ns_ips, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
-    ar, ar_ips, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
+    an, an_ips, an_cache_time, an_ttl, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
+    ns, ns_ips, ns_cache_time, ns_ttl, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
+    ar, ar_ips, ar_cache_time, ar_ttl,nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
 
-    # print(*response, sep="\n")
-    # print(*ns, sep="\n")
-    # print(*ar, sep="\n")
-    # print(*an, sep="\n")
+    cache_time = 0
+    if (an_cache_time == ns_cache_time and an_cache_time == ar_cache_time):
+        cache_time = an_cache_time
+    else:
+        cache_time = max(an_cache_time, ns_cache_time, ar_cache_time)
 
-    return response, an_ips + ns_ips + ar_ips
+    # print("AN: TTL in milliseconds:", an_cache_time, "TTL:", an_ttl)
+    # print("NS: TTL in milliseconds:", ns_cache_time, "TTL:", ns_ttl)
+    # print("AR: TTL in milliseconds:", ar_cache_time, "TTL:", ar_ttl)
+    all_ips = {**an_ips, **ns_ips, **ar_ips}
+
+    return response, all_ips, cache_time
 
 # this function is not needed for part B
 # def connection(domain, ip):
@@ -266,9 +272,9 @@ def parse(message):
 # parse resource record function
 def parse_rr(message, start, end, num):
     response_list = []
-    ips=[]
-
-    # parse through bits
+    ips={}
+    ttl = 0
+    cache_time = 0
     for current in range(num):
         aname = message[start:end]
         atype = message[start + 4:end + 4]
@@ -276,7 +282,6 @@ def parse_rr(message, start, end, num):
         aclass = message[start + 8:end + 8]
         ttl = message[start + 12:end + 16]
 
-        # get rddata length 
         rdlength = message[start + 20:end + 20]
         end = end + 20 + int(rdlength, 16) * 2
         rddata = message[start + 24:end]
@@ -286,14 +291,11 @@ def parse_rr(message, start, end, num):
         ip = ""
         ip_sec = ""
 
-        # break down rddata to construct IP address
         while tracker != int(rdlength, 16) * 2:
             end_tracker = tracker + 2
-
-            # get ip section
             ip_sec = int(rddata[tracker:end_tracker], 16)
             if (tracker + 2 != int(rdlength, 16) * 2):
-                ip = ip + str(ip_sec) + "." # each ip section is separated by a period
+                ip = ip + str(ip_sec) + "."
             else:
                 ip = ip + str(ip_sec)
 
@@ -304,16 +306,20 @@ def parse_rr(message, start, end, num):
         response_list.append("ATYPE: " + atype)
         response_list.append("ACLASS " + aclass)
         response_list.append("TTL: " + str(ttl))
+
+
         response_list.append("RDLENGTH: " + str(int(rdlength, 16)))
         response_list.append("RDDATA: " + rddata)
         response_list.append("IP: " + ip)
-        ips.append(ip)
+        ttl_hex = binascii.unhexlify(ttl)
+        cache_time = int(''.join(format(x, '02x') for x in ttl_hex), 16)
+        ips[ip] = cache_time
         response_list.append("")
 
         start = end
         end = end + 4
-
-    return response_list, ips, start, end
+        
+    return response_list, ips, cache_time, ttl, start, end
 
 if __name__ == '__main__':
     host = sys.argv[1]
@@ -324,32 +330,41 @@ if __name__ == '__main__':
     print("Root server IP address:", "199.7.83.42")
     response_Root, t1 = send_message(message, "199.7.83.42")
     #  print("RTT Root", t1)
-    response_Root, ips = parse(response_Root)
+    response_Root, ips, cache_time = parse(response_Root)
 
     # TLD server: 
-    tld_ip = ips[0]
-    for i in ips:
+    tld_ip = list(ips.keys())[0]
+    tld_ttl = ips[tld_ip]
+    for i in list(ips.keys()):  
         if len(i) < 16:
             tld_ip=i
+            tld_ttl = ips[tld_ip]
     print("TLD server IP address: ", tld_ip)
     response_TLD, t2 = send_message(message, tld_ip)
     # print("RTT TLD", t2)
-    response_TLD, ips = parse(response_TLD)
+    response_TLD, ips, cache_time = parse(response_TLD)
 
     # Auth server: 
-    auth_ip = ips[0]
-    for i in ips:
+    auth_ip = list(ips.keys())[0]
+    auth_ttl = ips[auth_ip]
+    for i in list(ips.keys()):  
         if len(i) < 16:
-            auth_ip = i
+            auth_ip=i
+            auth_ttl = ips[auth_ip]
     print("Authoritative server IP address: ", auth_ip)
     response_Auth, t3 = send_message(message, auth_ip)
     # print("RTT Auth", t3)
-    response_Auth, ips = parse(response_Auth)
-
+    response_Auth, ips, cache_time = parse(response_Auth)
     # HTTP server: 
-    resolved_ip = ips[0]
-    for i in ips:
+    resolved_ip = list(ips.keys())[0]
+    resolved_ttl = ips[resolved_ip]
+    for i in ips.keys():  
         if len(i) < 16:
-            resolved_ip = i
-            print("HTTP Server IP address: ", resolved_ip)
+            resolved_ip=i
+            print("HTTP Server IP address:" + resolved_ip)
+            resolved_ttl = ips[resolved_ip]
             break
+    
+    # print("TTL for " + host + ": "+ str(cache_time)) finding TTL for part C
+    
+    # print("Total resolve time: " + str(t1+t2+t3))
