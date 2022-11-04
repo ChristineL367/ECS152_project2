@@ -1,4 +1,5 @@
 from pickle import FALSE, TRUE
+
 import sys
 import socket
 import binascii
@@ -6,10 +7,10 @@ import time
 
 import os.path # for creating file check
 
-
+# creating query to send
 def create_query(hostname):
 
-    # header components: content + changed to string
+    # header section:
     ID = 22222
     ID_str = "{:04x}".format(ID)
     
@@ -36,6 +37,7 @@ def create_query(hostname):
     RCODE = 0
     RCODE_str = str(RCODE).zfill(4)
 
+    # flags are compressed from binary to hexadecimal
     flags = QR_str + OPCODE_str + AA_str + TC_str + RD_str + RA_str + Z_str + RCODE_str
     flags = "{:04x}".format(int(flags, 2))
 
@@ -53,7 +55,7 @@ def create_query(hostname):
 
     request = ID_str + flags + QDCOUNT_str + ANCOUNT_str + NSCOUNT_str + ARCOUNT_str
 
-    # question:
+    # question section:
     # break down hostname
     addr = hostname.split(".")
     for part in addr:
@@ -68,18 +70,16 @@ def create_query(hostname):
     # terminate qname (domain name) component
     request += "00" 
 
-    # type of question
     QTYPE = 1
     QTYPE_str = "{:04x}".format(QTYPE)
     request += QTYPE_str
 
-    # question class
     QCLASS = 1
     QCLASS_str = "{:04x}".format(QCLASS)
     request += QCLASS_str
 
 
-    # resource record:
+    # resource records:
 
     # answer
     ANS_name = 0
@@ -123,22 +123,22 @@ def get_type(input):
 
 # sending message to DNS IP
 def send_message(message):
-    DNS_IP = "169.237.229.88"  # change this by country
+    DNS_IP = "169.237.229.88"  # change this by country - currently for the USA
     DNS_PORT = 53
 
-    READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
+    READ_BUFFER = 1024  # size of the buffer to read in the received UDP packet.
 
     address = (DNS_IP, DNS_PORT)
 
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Internet, UDP.
 
-    # send message to give address
-    start = time.perf_counter()
+    # send message to given address
+    start = time.perf_counter() # RTT tracker
     client.sendto(binascii.unhexlify(message), address)
 
     # receive message
     data, address = client.recvfrom(4096)
-    end = time.perf_counter()
+    end = time.perf_counter() # RTT tracker
 
     client.close()
 
@@ -150,11 +150,12 @@ def send_message(message):
 
 def parse(message):
 
-    # header:
+    # header section:
     response = []
 
     ID = message[0:4]
 
+    # deconstruct from hex to binary to find flag values
     flags = message[4:8]
     parameters = format(int(flags, 16), "b").zfill(16)
 
@@ -172,21 +173,22 @@ def parse(message):
     NSCOUNT = message[16:20]
     ARCOUNT = message[20:24]
 
-
+    # place header values in list
     header = ["ID", "QR", "OPCODE", "AA", "TC", "RD", "RA", "Z", "RCODE", "QDCOUNT", "ANCOUNT", "NSCOUNT", "ARCOUNT"]
     header_values = [ID, QR, OPCODE, AA, TC, RD, RA, Z, RCODE, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT]
 
     for i in range(0, len(header)):
         response.append(header[i] + ": " + header_values[i])
 
-    # question
-    qlength = message[24:26]
-    qname = ""
+    # question section:
+    qlength = message[24:26] # get domain length
+    qname = "" # domain string
 
     end = 26 + int(qlength, 16) * 2
 
-    qname = message[26:end]
+    qname = message[26:end] # get domain
 
+    # construct domain name
     q_string = bytes.fromhex(qname)
     q_string = q_string.decode("ascii")
     q_string = q_string
@@ -194,7 +196,7 @@ def parse(message):
     start = end
     end = start + 2
 
-    # parse the domain name of question until reach terminating value
+    # continue to parse the domain name of question until reach terminating value
     while message[start:end] != "00":
         qlength = message[start:end]
         p_end = end + int(qlength, 16) * 2
@@ -223,19 +225,21 @@ def parse(message):
 
     response.append("QCLASS: " + qclass)
 
-    #answer
+    #answer section: 
     start = end
     end = end + 4
 
     # track ip addresses found
     ip_list = []
 
-    # loop through answer resource records
+    # loop through answer resource records for answer section
     for current in range(int(ANCOUNT, 16)):
         aname = message[start:end]
         atype = message[start+4:end+4]
         aclass = message[start+8:end+8]
         ttl = message[start+12:end+16]
+
+        # get rddata length
         rdlength = message[start+20:end+20]
         end = end + 20 + int(rdlength, 16)*2
         rddata = message[start+24:end]
@@ -245,13 +249,15 @@ def parse(message):
         ip = ""
         ip_sec = ""
 
-        # break down A answer IP address
+        # break down rddata to construct IP address
         if atype == "0001":
             while tracker != int(rdlength,16)*2:
                 end_tracker = tracker + 2
-                ip_sec = int(rddata[tracker:end_tracker], 16)
+
+                # get ip section
+                ip_sec = int(rddata[tracker:end_tracker], 16) 
                 if(tracker + 2 != int(rdlength,16)*2):
-                    ip = ip + str(ip_sec) + "."
+                    ip = ip + str(ip_sec) + "." # each ip section is separated by a period
                 else:
                     ip = ip + str(ip_sec)
                 
@@ -272,7 +278,8 @@ def parse(message):
         
         start = end
         end = end + 4
-                
+    
+    # return domain name and ip address
     return q_string, ip_list
 
 # send HTTP get request to found IP Address
@@ -301,14 +308,14 @@ def connection(domain, ip):
     content = str(response, 'utf-8')
     return content, (end-start) * 1000
     
-# write 
+# write response to .txt file
 def write_html(content):
     if os.path.exists("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt"):
         html_file = open("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt","a")
     else: 
         html_file = open("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt","w")
 
-    input = ["USA: \n", content , "\n\n" ]
+    input = ["USA: \n", content , "\n\n" ] # based on country ip
 
     html_file.writelines(input)
     html_file.close()
@@ -322,6 +329,7 @@ if __name__ == '__main__':
 
     content, http_time = connection(domain, ip[0])
 
+    # components to help answer report questions
     # print("Resolver: ", resolver_time)
     # print("HTTP: ", http_time)
     # write_html(content)
