@@ -2,6 +2,7 @@ from pickle import FALSE, TRUE
 import sys
 import socket
 import binascii
+import time
 
 import os.path # for creating file check
 
@@ -50,10 +51,33 @@ def create_query(hostname):
     ARCOUNT = 0
     ARCOUNT_str = "{:04x}".format(ARCOUNT)
 
-    # question
-    QName = 0
-    QType = 0
-    QClass = 0
+    request = ID_str + flags + QDCOUNT_str + ANCOUNT_str + NSCOUNT_str + ARCOUNT_str
+
+    # question:
+    # break down hostname
+    addr = hostname.split(".")
+    for part in addr:
+        # length of part
+        ad_len = "{:02x}".format(len(part))
+        # conent of part
+        ad_part = binascii.hexlify(part.encode())
+
+        request += ad_len
+        request += ad_part.decode()
+
+    # terminate qname (domain name) component
+    request += "00" 
+
+    # type of question
+    QTYPE = 1
+    QTYPE_str = "{:04x}".format(QTYPE)
+    request += QTYPE_str
+
+    # question class
+    QCLASS = 1
+    QCLASS_str = "{:04x}".format(QCLASS)
+    request += QCLASS_str
+
 
     # resource record:
 
@@ -85,31 +109,6 @@ def create_query(hostname):
     OFFSET = 0
 
     # request string
-    request = ID_str + flags + QDCOUNT_str + ANCOUNT_str + NSCOUNT_str + ARCOUNT_str
-
-    # break down hostname
-    addr = hostname.split(".")
-    for part in addr:
-        # length of part
-        ad_len = "{:02x}".format(len(part))
-        # conent of part
-        ad_part = binascii.hexlify(part.encode())
-
-        request += ad_len
-        request += ad_part.decode()
-
-    # terminate qname (domain name) component
-    request += "00" 
-
-    # type of question
-    QTYPE = 1
-    QTYPE_str = "{:04x}".format(QTYPE)
-    request += QTYPE_str
-
-    # question class
-    QCLASS = 1
-    QCLASS_str = "{:04x}".format(QCLASS)
-    request += QCLASS_str
 
     return request
 
@@ -134,17 +133,19 @@ def send_message(message):
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Internet, UDP.
 
     # send message to give address
+    start = time.perf_counter()
     client.sendto(binascii.unhexlify(message), address)
 
     # receive message
     data, address = client.recvfrom(4096)
+    end = time.perf_counter()
 
     client.close()
 
     # decode received message
     hex = binascii.hexlify(data)
 
-    return hex.decode("utf-8")
+    return hex.decode("utf-8"), (end-start) * 1000
 
 
 def parse(message):
@@ -282,6 +283,7 @@ def connection(domain, ip):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
     
     # connect the client 
+    start = time.perf_counter()
     client.connect((ip, target_port))  
     
     # send some data 
@@ -290,12 +292,14 @@ def connection(domain, ip):
     
     # receive some data 
     response = client.recv(4096)  
+    end = time.perf_counter()
+
     http_response = repr(response)
     http_response_len = len(http_response)
 
     # change response to a string
     content = str(response, 'utf-8')
-    return content
+    return content, (end-start) * 1000
     
 # write 
 def write_html(content):
@@ -304,7 +308,7 @@ def write_html(content):
     else: 
         html_file = open("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt","w")
 
-    input = ["Iran: \n", content , "\n\n" ]
+    input = ["USA: \n", content , "\n\n" ]
 
     html_file.writelines(input)
     html_file.close()
@@ -313,10 +317,13 @@ def write_html(content):
 if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
-    response = send_message(message)
+    response, resolver_time = send_message(message)
     domain, ip = parse(response)
 
-    content = connection(domain, ip[0])
+    content, http_time = connection(domain, ip[0])
+
+    # print("Resolver: ", resolver_time)
+    # print("HTTP: ", http_time)
     # write_html(content)
 
     print("Domain: " + domain)

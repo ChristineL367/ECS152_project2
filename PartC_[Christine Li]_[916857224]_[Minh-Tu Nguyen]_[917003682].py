@@ -5,7 +5,7 @@ import binascii
 import time
 
 import os.path # for creating file check
-
+cache_dictionary = {"tmz.com": [{"TLD": {"1.1.1.1": [2.91039, 2.4939]}}, {"AUTH": {"1.1.2.2": [4.245, 91.1209]}}], "amazon.com": [{"TLD": {"1.1.1.1": [2.91039, 2.4939]}}, {"AUTH": {"1.1.2.2": [4.245, 91.1209]}}]}
 def get_type(input):
     types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO",
              "MX", "TXT"]
@@ -225,14 +225,14 @@ def parse(message):
     num_ans = max(count)
 
     an, an_ips, an_cache_time, an_ttl, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
-    ns, ns_ips, ns_cache_time, ns_ttl,nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
-    ar, ar_ips, ar_cache_time, ar_ttl, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
+    ns, ns_ips, ns_cache_time, ns_ttl, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
+    ar, ar_ips, ar_cache_time, ar_ttl,nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
 
     print("AN: TTL in milliseconds:", an_cache_time, "TTL:", an_ttl)
     print("NS: TTL in milliseconds:", ns_cache_time, "TTL:", ns_ttl)
     print("AR: TTL in milliseconds:", ar_cache_time, "TTL:", ar_ttl)
-
-    return response, an_ips + ns_ips + ar_ips
+    all_ips = {**an_ips, **ns_ips, **ar_ips}
+    return response, all_ips
 
 # def connection(domain, ip):
 #     target_host = "domain"
@@ -257,7 +257,7 @@ def parse(message):
 
 def parse_rr(message, start, end, num):
     response_list = []
-    ips=[]
+    ips={}
     ttl = 0
     cache_time = 0
     for current in range(num):
@@ -296,78 +296,190 @@ def parse_rr(message, start, end, num):
         response_list.append("RDLENGTH: " + str(int(rdlength, 16)))
         response_list.append("RDDATA: " + rddata)
         response_list.append("IP: " + ip)
-        ips.append(ip)
+        ttl_hex = binascii.unhexlify(ttl)
+        cache_time = int(''.join(format(x, '02x') for x in ttl_hex), 16)
+        ips[ip] = cache_time
         response_list.append("")
 
         start = end
         end = end + 4
-        ttl_hex = binascii.unhexlify(ttl)
-        cache_time = int(''.join(format(x, '02x') for x in ttl_hex), 16)
+        
     return response_list, ips, cache_time, ttl, start, end
 
-# format: domain type ip
-def check_cache(domain, type):
-    ip = ""
-    mark = FALSE
-    phrase = domain + " " + type
-    if os.path.exists("partc_cache.txt"):
-        with open('partc.txt') as file:
-            if phrase in file.read():
-                mark = TRUE
+def add_cache(ip, ttl, hostname, layer):
+    #dict = {hostname: [{TLD: [{ip: [ttl, time]}, {ip2:[ttl,time]}]}, {auth: [{ip: [ttl, time]}]}]}
+    
+    cache_dictionary[hostname] = []
+    cache_dictionary[hostname].append({layer: []})
+    if layer == "TLD":
+        if len(i) < 16:
+            cache_dictionary[hostname][0][layer].append({ip:[ttl, time.perf_counter()]})
+    elif layer == "Auth":
+        if len(i) < 16:
+            cache_dictionary[hostname][1][layer].append({ip:[ttl, time.perf_counter()]})
+    elif layer == "Resolved":
+        if len(i) < 16:
+            cache_dictionary[hostname][2][layer].append({ip:[ttl, time.perf_counter()]})
+       
+    
 
-    if mark:
-        with open('partc_cache.txt', 'r') as file:
-            for index, line in enumerate(f):
-                if phrase in line:
-                    ip = line        
-                    break
-        
-        if ip != "":
-            ph_len = len(phrase)
-            ip = ip[ph_len+1:]
-                
-    return mark, ip
+def check_cache(hostname, layer):
+    t1 = time.perf_counter()
+    get_ip = ""
+    in_dict = FALSE
+    
+    if hostname in cache_dictionary:
+        print(cache_dictionary[hostname])
+        for l in range(len(cache_dictionary[hostname])):
+            if layer in cache_dictionary[hostname][l]:
+                # print(time_dictionary[hostname][type])
+                ip_items = cache_dictionary[hostname][l][layer].items()
+                print(ip_items)
+                for key, value in (ip_items): # key: ip value: time list
+                    print(key)
+                    print(value)
+                    if(t1-value[1] > value[0]):
+                        remove_cache(hostname, layer, l)
+                        return get_ip, in_dict
+                    else:
+                        get_ip = key
+                        in_dict = TRUE
+                        return get_ip, in_dict
+        else:
+            print("no layer found")
+            return get_ip, in_dict
+    
+    else:
+        print("no hostname found")
+        return get_ip, in_dict
+    pass
 
-def make_cache():
-    if os.path.exists("partc.txt") == FALSE:
-        html_file = open("partc,txt","w")
-        html_file.writelines(input)
-        html_file.close()
+def remove_cache(hostname, layer, l):
+    if (len(cache_dictionary[hostname])) == 1:
+        del cache_dictionary[hostname]
+    else:
+        del(cache_dictionary[hostname][l])
+    pass
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     host = ["youtube.com", "facebook.com","tmz.com", "cnn.com", "nytimes.com"]
-    for k in host:
+    for k in host: # dictionary format: dict = {hostname: [{TLD: [{ip: [ttl, time]}, {ip2:[ttl,time]}]}, {auth: [{ip: [ttl, time]}]}
         print(k)
         message = create_query(k)
         print("Root IP:", "199.7.83.42")
         response_Root, t1 = send_message(message, "199.7.83.42")
-
+        
         response_Root, ips = parse(response_Root)
 
-        tld_ip = ips[0]
-        for i in ips:
+        tld_ip = ips.keys()[0]
+        tld_ttl = ips[tld_ip]
+        for i in ips.keys():  
             if len(i) < 16:
                 tld_ip=i
+                tld_ttl = ips[tld_ip]
+        add_cache(tld_ip, tld_ttl, k, "TLD")
+                
+                
 
         print("TLD IP:", tld_ip)
         response_TLD, t2 = send_message(message, tld_ip)
-
+       
         response_TLD, ips = parse(response_TLD)
 
-        auth_ip = ips[0]
-        for i in ips:
+        auth_ip = ips.keys()[0]
+        auth_ttl = ips[auth_ip]
+        for i in ips.keys():  
             if len(i) < 16:
-                auth_ip = i
+                auth_ip=i
+                auth_ttl = ips[auth_ip]
+        add_cache(auth_ip, auth_ttl, k, "Auth")
         print("Auth IP:", auth_ip)
         response_Auth, t3 = send_message(message, auth_ip)
+        
         print("RTT to resolve hostname", t1 + t2+t3)
         response_Auth, ips = parse(response_Auth)
 
-        resolved_ip = ips[0]
-        for j in ips:
-            if len(j) < 16:
-                resolved_ip = j
+        resolved_ip = ips.keys()[0]
+        resolved_ttl = ips[resolved_ip]
+        for i in ips.keys():  
+            if len(i) < 16:
+                resolved_ip=i
                 print("Resolved IP for", k+":", resolved_ip)
+                resolved_ttl = ips[resolved_ip]
                 break
+        add_cache(resolved_ip, resolved_ttl, k, "Resolved")
         print("\n")
+
+    prompt = True
+    print("CACHED IP TESTING")
+    while prompt:
+    #   dict = {hostname: [{TLD: [{ip: [ttl, time]}, {ip2:[ttl,time]}]}, {auth: [{ip: [ttl, time]}]}]}
+        hostname = input("Enter hostname:")
+        if hostname not in ["tmz.com", "facebook.com", "cnn.com", "nytimes.com","youtube.com"]:
+            prompt = False
+            break
+        start= time.perf_counter()
+        try:
+            resolved = cache_dictionary[hostname][2]["Resolved"][0].keys()[0]
+            end = (time.perf_counter()-start)*1000
+            print(Resolved_IP, end)
+        except:
+            
+
+            tld = cache_dictionary[hostname][0]["TLD"]
+            ip_addr = 0
+            TLD_IP = 0
+            if tld != []:
+                for i in tld.keys():
+                    ip, cached = check_cache(hostname, "TLD")
+                    if cached:
+                        TLD_IP = ip 
+            if TLD_IP == 0:
+                response_Root, t1 = send_message(message, "199.7.83.42")
+            
+                response_Root, ips = parse(response_Root)
+                TLD_IP = ips.keys()[0]
+                for i in ips.keys():  
+                    if len(i) < 16:
+                        TLD_IP=i
+
+            auth = cache_dictionary[hostname][1]["Auth"]
+            ip_addr = 0
+            AUTH_IP = 0
+            if auth != []:
+                for i in auth.keys():
+                    ip, cached = check_cache(hostname, "Auth")
+                    if cached:
+                        AUTH_IP = ip 
+            if AUTH_IP == 0:
+                response_TLD, t2 = send_message(message, TLD_IP)
+            
+                response_TLD, ips = parse(response_TLD)
+                AUTH_IP = ips.keys()[0]
+                for i in ips.keys():  
+                    if len(i) < 16:
+                        AUTH_IP=i
+
+            
+            
+            response_Auth, t3 = send_message(message, AUTH_IP)
+        
+            response_Auth, ips = parse(response_Auth)
+            Resolved_IP = ips.keys()[0]
+            for i in ips.keys():  
+                if len(i) < 16:
+                    Resolved_IP=i
+            end = (time.perf_counter()-start)*1000
+            print(Resolved_IP, end)
+            
+            
+                    
+            
+                
+            
+                    
+        
+        # remove_cache("tmz.com", "AUTH", 1)
+        # print(cache_dictionary)
+        
+        
