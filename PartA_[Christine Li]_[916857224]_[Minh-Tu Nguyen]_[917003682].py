@@ -1,11 +1,9 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 from pickle import FALSE, TRUE
 import sys
 import socket
 import binascii
+
+import os.path # for creating file check
 
 def get_type(input):
     types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO", "MX", "TXT"]
@@ -123,7 +121,7 @@ def create_query(hostname):
 
 
 def send_message(message):
-    DNS_IP = "169.237.229.88"  # change this by country
+    DNS_IP = "46.224.1.42"  # change this by country
     DNS_PORT = 53
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
@@ -278,7 +276,7 @@ def connection(domain, ip):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
     
     # connect the client 
-    client.connect(("157.240.22.35",target_port))  
+    client.connect((ip, target_port))  
     
     # send some data 
     request = "GET / HTTP/1.1\r\nHost:%s\r\n\r\n" % target_host
@@ -289,21 +287,29 @@ def connection(domain, ip):
     http_response = repr(response)
     http_response_len = len(http_response)
 
-    print(str(response, 'utf-8'))
+    content = str(response, 'utf-8')
+    return content
     
+def write_html(content):
+    if os.path.exists("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt"):
+        html_file = open("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt","a")
+    else: 
+        html_file = open("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt","w")
+
+    input = ["Iran: \n", content , "\n\n" ]
+
+    html_file.writelines(input)
+    html_file.close()
 
     
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     host = sys.argv[1]
     message = create_query(host)
     response = send_message(message)
     domain, ip = parse(response)
-    # response = display(response)
+
+    content = connection(domain, ip[0])
+    # write_html(content)
+
     print("Domain: " + domain)
     print("HTTP Server Address: " + ip[0])
-
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
