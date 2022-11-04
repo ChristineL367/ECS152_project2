@@ -228,11 +228,18 @@ def parse(message):
     ns, ns_ips, ns_cache_time, ns_ttl, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
     ar, ar_ips, ar_cache_time, ar_ttl,nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
 
+    cache_time = 0
+    if (an_cache_time == ns_cache_time and an_cache_time == ar_cache_time):
+        cache_time = an_cache_time
+    else:
+        cache_time = max(an_cache_time, ns_cache_time, ar_cache_time)
+
     print("AN: TTL in milliseconds:", an_cache_time, "TTL:", an_ttl)
     print("NS: TTL in milliseconds:", ns_cache_time, "TTL:", ns_ttl)
     print("AR: TTL in milliseconds:", ar_cache_time, "TTL:", ar_ttl)
     all_ips = {**an_ips, **ns_ips, **ar_ips}
-    return response, all_ips
+
+    return response, all_ips, cache_time
 
 # def connection(domain, ip):
 #     target_host = "domain"
@@ -369,7 +376,7 @@ if __name__ == '__main__':
         print("Root IP:", "199.7.83.42")
         response_Root, t1 = send_message(message, "199.7.83.42")
         
-        response_Root, ips = parse(response_Root)
+        response_Root, ips, cache_time  = parse(response_Root)
 
         tld_ip = list(ips.keys())[0]
         tld_ttl = ips[tld_ip]
@@ -384,7 +391,7 @@ if __name__ == '__main__':
         print("TLD IP:", tld_ip)
         response_TLD, t2 = send_message(message, tld_ip)
        
-        response_TLD, ips = parse(response_TLD)
+        response_TLD, ips, cache_time = parse(response_TLD)
 
         auth_ip = list(ips.keys())[0]
         auth_ttl = ips[auth_ip]
@@ -397,7 +404,7 @@ if __name__ == '__main__':
         response_Auth, t3 = send_message(message, auth_ip)
         
         print("RTT to resolve hostname", t1 + t2+t3)
-        response_Auth, ips = parse(response_Auth)
+        response_Auth, ips, cache_time  = parse(response_Auth)
 
         resolved_ip = ips.keys()[0]
         resolved_ttl = ips[resolved_ip]
@@ -437,7 +444,7 @@ if __name__ == '__main__':
             if TLD_IP == 0:
                 response_Root, t1 = send_message(message, "199.7.83.42")
             
-                response_Root, ips = parse(response_Root)
+                response_Root, ips, cache_time = parse(response_Root)
                 TLD_IP = ips.keys()[0]
                 for i in ips.keys():  
                     if len(i) < 16:
@@ -454,7 +461,7 @@ if __name__ == '__main__':
             if AUTH_IP == 0:
                 response_TLD, t2 = send_message(message, TLD_IP)
             
-                response_TLD, ips = parse(response_TLD)
+                response_TLD, ips, cache_time = parse(response_TLD)
                 AUTH_IP = ips.keys()[0]
                 for i in ips.keys():  
                     if len(i) < 16:
@@ -464,7 +471,7 @@ if __name__ == '__main__':
             
             response_Auth, t3 = send_message(message, AUTH_IP)
         
-            response_Auth, ips = parse(response_Auth)
+            response_Auth, ips, cache_time = parse(response_Auth)
             Resolved_IP = ips.keys()[0]
             for i in ips.keys():  
                 if len(i) < 16:
