@@ -371,9 +371,9 @@ if __name__ == '__main__':
         
         response_Root, ips = parse(response_Root)
 
-        tld_ip = ips.keys()[0]
+        tld_ip = list(ips.keys())[0]
         tld_ttl = ips[tld_ip]
-        for i in ips.keys():  
+        for i in list(ips.keys()):  
             if len(i) < 16:
                 tld_ip=i
                 tld_ttl = ips[tld_ip]
@@ -386,9 +386,9 @@ if __name__ == '__main__':
        
         response_TLD, ips = parse(response_TLD)
 
-        auth_ip = ips.keys()[0]
+        auth_ip = list(ips.keys())[0]
         auth_ttl = ips[auth_ip]
-        for i in ips.keys():  
+        for i in list(ips.keys()):  
             if len(i) < 16:
                 auth_ip=i
                 auth_ttl = ips[auth_ip]
