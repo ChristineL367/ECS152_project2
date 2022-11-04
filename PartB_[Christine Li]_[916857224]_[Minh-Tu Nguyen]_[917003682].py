@@ -226,10 +226,10 @@ def parse(message):
     ns, ns_ips, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
     ar, ar_ips, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
 
-    print(*response, sep="\n")
-    print(*ns, sep="\n")
-    print(*ar, sep="\n")
-    print(*an, sep="\n")
+    # print(*response, sep="\n")
+    # print(*ns, sep="\n")
+    # print(*ar, sep="\n")
+    # print(*an, sep="\n")
 
     return response, an_ips + ns_ips + ar_ips
 
@@ -315,7 +315,7 @@ if __name__ == '__main__':
             tld_ip=i
     print("TLD IP:", tld_ip)
     response_TLD, t2 = send_message(message, tld_ip)
-    print("RTT TLD", t1+t2)
+    print("RTT TLD", t2)
     response_TLD, ips = parse(response_TLD)
 
     auth_ip = ips[0]
@@ -324,7 +324,7 @@ if __name__ == '__main__':
             auth_ip = i
     print("Auth IP:", auth_ip)
     response_Auth, t3 = send_message(message, auth_ip)
-    print("RTT Auth", t1 + t2+t3)
+    print("RTT Auth", t3)
     response_Auth, ips = parse(response_Auth)
 
     resolved_ip = ips[0]
