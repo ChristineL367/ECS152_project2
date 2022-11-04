@@ -4,6 +4,8 @@ import socket
 import binascii
 import time
 
+import os.path # for creating file check
+
 def get_type(input):
     types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO",
              "MX", "TXT"]
@@ -18,19 +20,48 @@ def get_type(input):
 
 
 def create_query(hostname):
-    ID = 43690
+
+    ID = 22222
+    ID_str = "{:04x}".format(ID)
+    
     QR = 0
+    QR_str = str(QR)
+
     OPCODE = 0
+    OPCODE_str = str(OPCODE).zfill(4)
     AA = 0
+    AA_str = str(AA)
+
     TC = 0
-    RD = 0
+    TC_str = str(TC)
+
+    RD = 1
+    RD_str = str(RD)
+
     RA = 0
+    RA_str = str(RA)
+
     Z = 0
+    Z_str = str(Z).zfill(3)
+
     RCODE = 0
+    RCODE_str = str(RCODE).zfill(4)
+
+    flags = QR_str + OPCODE_str + AA_str + TC_str + RD_str + RA_str + Z_str + RCODE_str
+    flags = "{:04x}".format(int(flags, 2))
+
     QDCOUNT = 1
+    QDCOUNT_str = "{:04x}".format(QDCOUNT)
+
     ANCOUNT = 0
+    ANCOUNT_str = "{:04x}".format(ANCOUNT)
+    
     NSCOUNT = 0
+    NSCOUNT_str = "{:04x}".format(NSCOUNT)
+
     ARCOUNT = 0
+    ARCOUNT_str = "{:04x}".format(ARCOUNT)
+
     # question
     QName = 0
     QType = 0
@@ -38,86 +69,54 @@ def create_query(hostname):
     # resource record:
 
     # answer
-
     ANS_name = 0
     ANS_type = 0
     ANS_class = 0
     ANS_ttl = 0
     ANS_rdlength = 0
     ANS_rddata = 0
-    # authority
 
+    # authority
     AUTH_name = 0
     AUTH_type = 0
     AUTH_class = 0
     AUTH_ttl = 0
     AUTH_rdlength = 0
     AUTH_rddata = 0
-    # additional
 
+    # additional
     ADD_name = 0
     ADD_type = 0
     ADD_class = 0
     ADD_ttl = 0
     ADD_rdlength = 0
     ADD_rddata = 0
+
     # offset
     OFFSET = 0
 
-    message = ""
+    request = ID_str + flags + QDCOUNT_str + ANCOUNT_str + NSCOUNT_str + ARCOUNT_str
 
-    query = str(QR)
-    query += str(OPCODE).zfill(4)
-    query += str(AA) + str(TC) + str(RD) + str(RA)
-    query += str(Z).zfill(3)
-    query += str(RCODE).zfill(4)
+    addr = hostname.split(".")
+    for part in addr:
+        ad_len = "{:02x}".format(len(part))
+        ad_part = binascii.hexlify(part.encode())
+        request += ad_len
+        request += ad_part.decode()
 
-    query = "{:04x}".format(int(query, 2))
-    message += "{:04x}".format(ID)
-    message += query
-    message += "{:04x}".format(QDCOUNT)
-    message += "{:04x}".format(ANCOUNT)
-    message += "{:04x}".format(NSCOUNT)
-    message += "{:04x}".format(ARCOUNT)
-
-    addr_parts = hostname.split(".")
-    for part in addr_parts:
-        addr_len = "{:02x}".format(len(part))
-        addr_part = binascii.hexlify(part.encode())
-        message += addr_len
-        message += addr_part.decode()
-
-    message += "00"  # Terminating bit for QNAME
+    request += "00"  # Terminating bit for QNAME
 
     # Type of request
     QTYPE = 1
-    message += "{:04x}".format(QTYPE)
+    QTYPE_str = "{:04x}".format(QTYPE)
+    request += QTYPE_str
 
     # Class for lookup. 1 is Internet
     QCLASS = 1
-    message += "{:04x}".format(QCLASS)
-    # message += addr_parts[0].encode('utf-8').hex()
-    # message += "{:04x}".format(ANS_type)
-    # message += "{:04x}".format(ANS_class)
-    # message += "{:04x}".format(ANS_ttl)
-    # message += "{:04x}".format(ANS_rdlength)
-    # message += "{:04x}".format(ANS_rddata)
+    QCLASS_str = "{:04x}".format(QCLASS)
+    request += QCLASS_str
 
-    # message += addr_parts[0].encode('utf-8').hex()
-    # message += "{:04x}".format(AUTH_type)
-    # message += "{:04x}".format(AUTH_class)
-    # message += "{:04x}".format(AUTH_ttl)
-    # message += "{:04x}".format(AUTH_rdlength)
-    # message += "{:04x}".format(AUTH_rddata)
-
-    # message += addr_parts[0].encode('utf-8').hex()
-    # message += "{:04x}".format(ADD_type)
-    # message += "{:04x}".format(ADD_class)
-    # message += "{:04x}".format(ADD_ttl)
-    # message += "{:04x}".format(ADD_rdlength)
-    # message += "{:04x}".format(ADD_rddata)
-
-    return message
+    return request
 
 
 def send_message(message, IP):
@@ -306,6 +305,34 @@ def parse_rr(message, start, end, num):
         cache_time = int(''.join(format(x, '02x') for x in ttl_hex), 16)
     return response_list, ips, cache_time, ttl, start, end
 
+# format: domain type ip
+def check_cache(domain, type):
+    ip = ""
+    mark = FALSE
+    phrase = domain + " " + type
+    if os.path.exists("partc_cache.txt"):
+        with open('partc.txt') as file:
+            if phrase in file.read():
+                mark = TRUE
+
+    if mark:
+        with open('partc_cache.txt', 'r') as file:
+            for index, line in enumerate(f):
+                if phrase in line:
+                    ip = line        
+                    break
+        
+        if ip != "":
+            ph_len = len(phrase)
+            ip = ip[ph_len+1:]
+                
+    return mark, ip
+
+def make_cache():
+    if os.path.exists("partc.txt") == FALSE:
+        html_file = open("partc,txt","w")
+        html_file.writelines(input)
+        html_file.close()
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':

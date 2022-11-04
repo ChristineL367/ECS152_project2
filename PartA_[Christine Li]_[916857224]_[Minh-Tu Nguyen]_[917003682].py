@@ -5,6 +5,115 @@ import binascii
 
 import os.path # for creating file check
 
+
+def create_query(hostname):
+
+    # header components: content + changed to string
+    ID = 22222
+    ID_str = "{:04x}".format(ID)
+    
+    QR = 0
+    QR_str = str(QR)
+
+    OPCODE = 0
+    OPCODE_str = str(OPCODE).zfill(4)
+    AA = 0
+    AA_str = str(AA)
+
+    TC = 0
+    TC_str = str(TC)
+
+    RD = 1
+    RD_str = str(RD)
+
+    RA = 0
+    RA_str = str(RA)
+
+    Z = 0
+    Z_str = str(Z).zfill(3)
+
+    RCODE = 0
+    RCODE_str = str(RCODE).zfill(4)
+
+    flags = QR_str + OPCODE_str + AA_str + TC_str + RD_str + RA_str + Z_str + RCODE_str
+    flags = "{:04x}".format(int(flags, 2))
+
+    QDCOUNT = 1
+    QDCOUNT_str = "{:04x}".format(QDCOUNT)
+
+    ANCOUNT = 0
+    ANCOUNT_str = "{:04x}".format(ANCOUNT)
+    
+    NSCOUNT = 0
+    NSCOUNT_str = "{:04x}".format(NSCOUNT)
+
+    ARCOUNT = 0
+    ARCOUNT_str = "{:04x}".format(ARCOUNT)
+
+    # question
+    QName = 0
+    QType = 0
+    QClass = 0
+
+    # resource record:
+
+    # answer
+    ANS_name = 0
+    ANS_type = 0
+    ANS_class = 0
+    ANS_ttl = 0
+    ANS_rdlength = 0
+    ANS_rddata = 0
+
+    # authority
+    AUTH_name = 0
+    AUTH_type = 0
+    AUTH_class = 0
+    AUTH_ttl = 0
+    AUTH_rdlength = 0
+    AUTH_rddata = 0
+
+    # additional
+    ADD_name = 0
+    ADD_type = 0
+    ADD_class = 0
+    ADD_ttl = 0
+    ADD_rdlength = 0
+    ADD_rddata = 0
+
+    # offset
+    OFFSET = 0
+
+    # request string
+    request = ID_str + flags + QDCOUNT_str + ANCOUNT_str + NSCOUNT_str + ARCOUNT_str
+
+    # break down hostname
+    addr = hostname.split(".")
+    for part in addr:
+        # length of part
+        ad_len = "{:02x}".format(len(part))
+        # conent of part
+        ad_part = binascii.hexlify(part.encode())
+
+        request += ad_len
+        request += ad_part.decode()
+
+    # terminate qname (domain name) component
+    request += "00" 
+
+    # type of question
+    QTYPE = 1
+    QTYPE_str = "{:04x}".format(QTYPE)
+    request += QTYPE_str
+
+    # question class
+    QCLASS = 1
+    QCLASS_str = "{:04x}".format(QCLASS)
+    request += QCLASS_str
+
+    return request
+
+# get type of response
 def get_type(input):
     types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO", "MX", "TXT"]
 
@@ -13,115 +122,9 @@ def get_type(input):
     else:
         return types[int(input,16)]
 
-
-def create_query(hostname):
-
-    ID = 43690
-    QR = 0
-    OPCODE = 0
-    AA = 0
-    TC = 0
-    RD = 1
-    RA = 0
-    Z = 0
-    RCODE = 0
-    QDCOUNT = 1
-    ANCOUNT = 0
-    NSCOUNT = 0
-    ARCOUNT = 0
-
-    # question
-    QName = 0
-    QType = 0
-    QClass = 0
-    # resource record:
-
-    # answer
-
-    ANS_name = 0
-    ANS_type = 0
-    ANS_class = 0
-    ANS_ttl = 0
-    ANS_rdlength = 0
-    ANS_rddata = 0
-    # authority
-
-    AUTH_name = 0
-    AUTH_type = 0
-    AUTH_class = 0
-    AUTH_ttl = 0
-    AUTH_rdlength = 0
-    AUTH_rddata = 0
-    # additional
-
-    ADD_name = 0
-    ADD_type = 0
-    ADD_class = 0
-    ADD_ttl = 0
-    ADD_rdlength = 0
-    ADD_rddata = 0
-    # offset
-    OFFSET = 0
-
-    message = ""
-
-    flags = str(QR)
-    flags += str(OPCODE).zfill(4)
-    flags += str(AA) + str(TC) + str(RD) + str(RA)
-    flags += str(Z).zfill(3)
-    flags += str(RCODE).zfill(4)
-
-    query = "{:04x}".format(int(flags, 2))
-    message += "{:04x}".format(ID)
-    message += query
-    message += "{:04x}".format(QDCOUNT)
-    message += "{:04x}".format(ANCOUNT)
-    message += "{:04x}".format(NSCOUNT)
-    message += "{:04x}".format(ARCOUNT)
-
-    addr_parts = hostname.split(".")
-    for part in addr_parts:
-        addr_len = "{:02x}".format(len(part))
-        addr_part = binascii.hexlify(part.encode())
-        message += addr_len
-        message += addr_part.decode()
-
-    message += "00"  # Terminating bit for QNAME
-
-    # Type of request
-    QTYPE = 1
-    message += "{:04x}".format(QTYPE)
-
-    # Class for lookup. 1 is Internet
-    QCLASS = 1
-    message += "{:04x}".format(QCLASS)
-    # message += addr_parts[0].encode('utf-8').hex()
-    # message += "{:04x}".format(ANS_type)
-    # message += "{:04x}".format(ANS_class)
-    # message += "{:04x}".format(ANS_ttl)
-    # message += "{:04x}".format(ANS_rdlength)
-    # message += "{:04x}".format(ANS_rddata)
-
-    # message += addr_parts[0].encode('utf-8').hex()
-    # message += "{:04x}".format(AUTH_type)
-    # message += "{:04x}".format(AUTH_class)
-    # message += "{:04x}".format(AUTH_ttl)
-    # message += "{:04x}".format(AUTH_rdlength)
-    # message += "{:04x}".format(AUTH_rddata)
-
-    # message += addr_parts[0].encode('utf-8').hex()
-    # message += "{:04x}".format(ADD_type)
-    # message += "{:04x}".format(ADD_class)
-    # message += "{:04x}".format(ADD_ttl)
-    # message += "{:04x}".format(ADD_rdlength)
-    # message += "{:04x}".format(ADD_rddata)
-
-
-    return message
-
-
+# sending message to DNS IP
 def send_message(message):
-    DNS_IP = "46.224.1.42"  # change this by country
+    DNS_IP = "169.237.229.88"  # change this by country
     DNS_PORT = 53
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
@@ -130,20 +133,23 @@ def send_message(message):
 
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Internet, UDP.
 
+    # send message to give address
     client.sendto(binascii.unhexlify(message), address)
 
+    # receive message
     data, address = client.recvfrom(4096)
 
     client.close()
 
+    # decode received message
     hex = binascii.hexlify(data)
 
     return hex.decode("utf-8")
 
 
 def parse(message):
-    # header:
 
+    # header:
     response = []
 
     ID = message[0:4]
@@ -172,11 +178,9 @@ def parse(message):
     for i in range(0, len(header)):
         response.append(header[i] + ": " + header_values[i])
 
-
     # question
     qlength = message[24:26]
     qname = ""
-    qcurrent = ""
 
     end = 26 + int(qlength, 16) * 2
 
@@ -189,6 +193,7 @@ def parse(message):
     start = end
     end = start + 2
 
+    # parse the domain name of question until reach terminating value
     while message[start:end] != "00":
         qlength = message[start:end]
         p_end = end + int(qlength, 16) * 2
@@ -221,11 +226,10 @@ def parse(message):
     start = end
     end = end + 4
 
+    # track ip addresses found
     ip_list = []
-    # count = [int(ANCOUNT, 16), int(NSCOUNT, 16), int(ARCOUNT, 16)]
 
-    # num_ans = max(count)
-
+    # loop through answer resource records
     for current in range(int(ANCOUNT, 16)):
         aname = message[start:end]
         atype = message[start+4:end+4]
@@ -240,6 +244,7 @@ def parse(message):
         ip = ""
         ip_sec = ""
 
+        # break down A answer IP address
         if atype == "0001":
             while tracker != int(rdlength,16)*2:
                 end_tracker = tracker + 2
@@ -269,8 +274,9 @@ def parse(message):
                 
     return q_string, ip_list
 
+# send HTTP get request to found IP Address
 def connection(domain, ip):
-    target_host = "domain" 
+    target_host = domain
  
     target_port = 80  # create a socket object 
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
@@ -287,9 +293,11 @@ def connection(domain, ip):
     http_response = repr(response)
     http_response_len = len(http_response)
 
+    # change response to a string
     content = str(response, 'utf-8')
     return content
     
+# write 
 def write_html(content):
     if os.path.exists("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt"):
         html_file = open("Parta_http_[Christine Li]_[916857224]_[Minh-Tu Nguyen]_[917003682].txt","a")
