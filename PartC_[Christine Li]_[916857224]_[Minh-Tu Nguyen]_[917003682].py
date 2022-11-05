@@ -9,6 +9,7 @@ import os.path  # for creating file check
 cache_dictionary = {}
 prompting = 0
 def get_type(input):
+    #gets the type of the query
     types = ["ERROR", "A", "NS", "MD", "MF", "CNAME", "SOA", "MB", "MG", "MR", "NULL", "WKS", "PTS", "HINFO", "MINFO",
              "MX", "TXT"]
 
@@ -22,6 +23,7 @@ def get_type(input):
 
 
 def create_query(hostname):
+    #create a query using custom values for each field
     ID = 22222
     ID_str = "{:04x}".format(ID)
 
@@ -121,27 +123,29 @@ def create_query(hostname):
 
 
 def send_message(message, IP):
+    #send a message using UDP socket calls
     DNS_IP = IP  # change this by root
-    DNS_PORT = 53
+    DNS_PORT = 53 
 
     READ_BUFFER = 1024  # The size of the buffer to read in the received UDP packet.
 
     address = (DNS_IP, DNS_PORT)
-
+    
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Internet, UDP.
-    start = time.perf_counter()
+    start = time.perf_counter() #count the time we started sending the message
     client.sendto(binascii.unhexlify(message), address)
 
     data, address = client.recvfrom(4096)
 
     client.close()
-    end = time.perf_counter()
+    end = time.perf_counter() #the time we got the message back and closed the connection
     hex = binascii.hexlify(data)
 
-    return hex.decode("utf-8"), (end - start) * 1000
+    return hex.decode("utf-8"), (end - start) * 1000 
 
 
 def parse(message):
+    #parse the message we got back from the server we queried
     # header:
 
     response = []
@@ -224,7 +228,7 @@ def parse(message):
     count = [int(ANCOUNT, 16), int(NSCOUNT, 16), int(ARCOUNT, 16)]
 
     num_ans = max(count)
-
+    # we get the name, a dictionary that maps ip to cache time, the ttl as time, the ttl, and a start and end valuw
     an, an_ips, an_cache_time, an_ttl, nstart, nend = parse_rr(message, start, end, int(ANCOUNT, 16))
     ns, ns_ips, ns_cache_time, ns_ttl, nstart, nend = parse_rr(message, nstart, nend, int(NSCOUNT, 16))
     ar, ar_ips, ar_cache_time, ar_ttl, nstart, nend = parse_rr(message, nstart, nend, int(ARCOUNT, 16))
@@ -237,6 +241,7 @@ def parse(message):
 
 
 def parse_rr(message, start, end, num):
+    #parsing each resource record
     response_list = []
     ips = {}
     ttl = 0
@@ -288,6 +293,7 @@ def parse_rr(message, start, end, num):
 
 
 def add_cache(ip, ttl, hostname, layer):
+    # create a cache dictionary of the following format:
     # dict = {hostname: [{TLD: [{ip: [ttl, time]}, {ip2:[ttl,time]}]}, {auth: [{ip: [ttl, time]}]}]}
     if hostname not in cache_dictionary:
         cache_dictionary[hostname] = []
@@ -319,6 +325,7 @@ def add_cache(ip, ttl, hostname, layer):
 
 
 def check_cache(hostname, layer):
+    # check if the hostname is in the cache and that specific "layer", if so, check if it is expired.
     t1 = time.perf_counter()*1000
     get_ip = ""
     in_dict = False
@@ -333,9 +340,11 @@ def check_cache(hostname, layer):
                 for key, value in (ip_items):  # key: ip value: time list
 
                     if (t1 - value[1] > value[0]):
+                        #remove the item from the dictionary if the ttl is expired.
                         remove_cache(hostname, layer, l)
                         return get_ip, in_dict
                     else:
+                        # otherwise, the ip is the cached ip.
                         get_ip = key
                         in_dict = True
                         return get_ip, in_dict
@@ -360,15 +369,18 @@ def remove_cache(hostname, layer, l):
 if __name__ == '__main__':
     host = ["youtube.com", "facebook.com", "tmz.com", "cnn.com", "nytimes.com"]
     messages = {}
+    #RUNNING ALL WEBSITES WITHOUT CACHE
     for k in host:  # dictionary format: dict = {hostname: [{TLD: [{ip: [ttl, time]}, {ip2:[ttl,time]}]}, {auth: [{ip: [ttl, time]}]}
         print(k)
         message = create_query(k)
         messages[k] = message
+        
+        #send message to root to get the TLD IPs
         print("Root IP:", "199.7.83.42")
         response_Root, t1 = send_message(message, "199.7.83.42")
 
         response_Root, ips = parse(response_Root)
-
+        #within TLD ips, select one with a length shorter than 16 so we exclude IPv6
         tld_ip = list(ips.keys())[0]
         tld_ttl = ips[tld_ip]
         for i in list(ips.keys()):
@@ -378,10 +390,11 @@ if __name__ == '__main__':
         add_cache(tld_ip, tld_ttl, k, "TLD")
 
         print("TLD IP:", tld_ip)
+        #send message to chosen TLD ip to get Auth IPs
         response_TLD, t2 = send_message(message, tld_ip)
 
         response_TLD, ips = parse(response_TLD)
-
+         #within Auth ips, select one with a length shorter than 16 so we exclude IPv6
         auth_ip = list(ips.keys())[0]
         auth_ttl = ips[auth_ip]
         for i in list(ips.keys()):
@@ -390,11 +403,12 @@ if __name__ == '__main__':
                 auth_ttl = ips[auth_ip]
         add_cache(auth_ip, auth_ttl, k, "Auth")
         print("Auth IP:", auth_ip)
+        #send message to Auth IP to get resolved IP
         response_Auth, t3 = send_message(message, auth_ip)
 
 
         response_Auth, ips = parse(response_Auth)
-
+        #within resolved IPs, exclude IPv6 and choose an IPv4
         resolved_ip = list(ips.keys())[0]
         resolved_ttl = ips[resolved_ip]
         for i in list(ips.keys()):
@@ -408,16 +422,18 @@ if __name__ == '__main__':
         print("\n")
 
     prompt = True
-    print("CACHED IP TESTING")
+    print("PROMPT USER FOR INPUT WITH A CACHE FROM OUR PREVIOUS RUN, ONLY THE 5 GIVEN DOMAINS ARE VALID INPUTS")
     prompting = 1
     while prompt:
         #   dict = {hostname: [{TLD: [{ip: [ttl, time]}, {ip2:[ttl,time]}]}, {auth: [{ip: [ttl, time]}]}]}
         hostname = input("Enter hostname:")
         if hostname not in ["tmz.com", "facebook.com", "cnn.com", "nytimes.com", "youtube.com"]:
+            #exit if the input isn't a valid hostname
             prompt = False
             break
-        start = time.perf_counter()
+        start = time.perf_counter() #time we started to count for getting the resolved IP back
         try:
+            #check first if the resolved ip is already in the cache and return if so
             resolved = 0
             for i in list(cache_dictionary[hostname][2]["Resolved"][0].keys()):
                 ip, cached = check_cache(hostname, "Resolved")
@@ -426,13 +442,16 @@ if __name__ == '__main__':
 
                     resolved = ip
                 else:
+                    #purposely create an error to exit to the exception clause
                     print(2/0)
-
+            #time we stop counting for getting the resolved ip in the case it is in the cache
             end = (time.perf_counter() - start) * 1000
+            #time we stop counting for 
             print("RESOLVED IP:", resolved,'\n'+ "RTT to resolve hostname:",end)
 
         except:
-
+            #check layer by layer (root, dns, auth, resolved) if their ip is cached
+            #check if tld is cached
             tld = cache_dictionary[hostname][0]["TLD"][0]
             auth_check = 1
             resolve_check = 2
@@ -445,8 +464,9 @@ if __name__ == '__main__':
                         TLD_IP = ip
 
             if TLD_IP == 0:
-                auth_check -=1
-                resolve_check -=1
+                 #if tld is not cached, send message to root to find it
+                auth_check -=1 #decrement the index we check for auth ip since tld is not cached
+                resolve_check -=1 #decrement the index we check for resolved ip since auth is not cached
                 response_Root, t1 = send_message(messages[hostname], "199.7.83.42")
 
                 response_Root, ips = parse(response_Root)
@@ -456,7 +476,7 @@ if __name__ == '__main__':
                         TLD_IP = i
             print("TLD_IP:", TLD_IP)
             auth = cache_dictionary[hostname][auth_check]["Auth"][0]
-
+            #check if auth is cached
             ip_addr = 0
             AUTH_IP = 0
             if auth != []:
@@ -465,6 +485,7 @@ if __name__ == '__main__':
                     if cached:
                         AUTH_IP = i
                 if AUTH_IP != 0:
+                    #if auth is cached, use it to find resolved IP by sending a signal to the cached Auth
                     print("AUTH_IP:", AUTH_IP)
                     response_Auth, t3 = send_message(messages[hostname], AUTH_IP)
 
@@ -476,13 +497,15 @@ if __name__ == '__main__':
                     for i in list(ips.keys()):
                         if len(i) < 16:
                             resolved_ip = i
+                            #time we stop counting for getting the resolved ip in the case it isn't in the cache 
                             end = (time.perf_counter() - start) * 1000
                             print("RESOLVED IP:", resolved_ip,'\n'+ "RTT to resolve hostname:", end)
 
                             resolved_ttl = ips[resolved_ip]
                             break
                 elif AUTH_IP == 0:
-                    resolve_check -=1
+                    # if auth not cached, send message to the tld server we found and then use the auth ip it returns to query for the resolved ip
+                    resolve_check -=1 #decrement the index we check for resolved ip since auth is not cached
                     response_TLD, t2 = send_message(messages[hostname], TLD_IP)
 
                     response_TLD, ips = parse(response_TLD)
@@ -500,18 +523,12 @@ if __name__ == '__main__':
                     for i in list(ips.keys()):
                         if len(i) < 16:
                             resolved_ip = i
+                            #time we stop counting for getting the resolved ip in the case it isn't in the cache 
                             end = (time.perf_counter() - start) * 1000
+                            
                             print("RESOLVED IP:", resolved_ip, '\n'+"RTT to resolve hostname:", end)
                             resolved_ttl = ips[resolved_ip]
                             break
 
-
-
-
-
-
-
-        # remove_cache("tmz.com", "AUTH", 1)
-        # print(cache_dictionary)
 
         print("\n")
